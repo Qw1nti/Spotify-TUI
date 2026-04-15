@@ -68,7 +68,9 @@ async fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut app::App,
 ) -> Result<()> {
-    app.refresh().await?;
+    if let Err(err) = app.refresh().await {
+        app.status = friendly_error(&err);
+    }
 
     loop {
         terminal.draw(|frame| ui::render(frame, app))?;
@@ -78,8 +80,12 @@ async fn run_app(
                 if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
                     break;
                 }
-                if app.handle_key(key.code).await? {
-                    break;
+                match app.handle_key(key.code).await {
+                    Ok(true) => break,
+                    Ok(false) => {}
+                    Err(err) => {
+                        app.status = friendly_error(&err);
+                    }
                 }
             }
         }
@@ -99,4 +105,21 @@ pub fn home_dir(path: &str) -> PathBuf {
 
 pub fn config_dir(app: &str) -> PathBuf {
     home_dir(&format!(".config/{app}"))
+}
+
+fn friendly_error(err: &anyhow::Error) -> String {
+    let message = err.to_string();
+    if message.contains("rate limited") {
+        return "Spotify rate limited the request. Try again in a moment.".into();
+    }
+    if message.contains("auth expired") {
+        return "Spotify auth expired. Run `spotifytui onboard` again.".into();
+    }
+    if message.contains("no active Spotify device") {
+        return "No active Spotify device found. Open Spotify and choose a device.".into();
+    }
+    if message.contains("rejected an empty request body") {
+        return "Spotify rejected a request body. Refresh and try again.".into();
+    }
+    message
 }

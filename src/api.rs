@@ -1,5 +1,5 @@
 use anyhow::Result;
-use reqwest::{Client, Method};
+use reqwest::{Client, Method, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
@@ -21,11 +21,15 @@ impl SpotifyApi {
     }
 
     pub async fn current_playback(&self) -> Result<Option<PlayerState>> {
-        let resp = self.request(Method::GET, "https://api.spotify.com/v1/me/player").send().await?;
-        if resp.status() == reqwest::StatusCode::NO_CONTENT {
+        let resp = self
+            .request(Method::GET, "https://api.spotify.com/v1/me/player")
+            .send()
+            .await?;
+        if resp.status() == StatusCode::NO_CONTENT {
             return Ok(None);
         }
-        Ok(Some(resp.error_for_status()?.json().await?))
+        let resp = self.checked_response(resp, "read current playback", "https://api.spotify.com/v1/me/player")?;
+        Ok(Some(resp.json().await?))
     }
 
     pub async fn search_tracks(&self, query: &str, limit: usize) -> Result<SearchResponse> {
@@ -64,37 +68,45 @@ impl SpotifyApi {
         let playback = self.current_playback().await?;
         if let Some(state) = playback {
             if state.is_playing {
-                self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/pause", device_id)
-                    .json(&serde_json::json!({}))
-                    .send()
-                    .await?
-                    .error_for_status()?;
+                self.send_player_command(
+                    self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/pause", device_id)
+                        .json(&serde_json::json!({})),
+                    "pause playback",
+                    "https://api.spotify.com/v1/me/player/pause",
+                )
+                .await?;
             } else {
-                self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/play", device_id)
-                    .json(&serde_json::json!({}))
-                    .send()
-                    .await?
-                    .error_for_status()?;
+                self.send_player_command(
+                    self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/play", device_id)
+                        .json(&serde_json::json!({})),
+                    "resume playback",
+                    "https://api.spotify.com/v1/me/player/play",
+                )
+                .await?;
             }
         }
         Ok(())
     }
 
     pub async fn next_track(&self, device_id: Option<&str>) -> Result<()> {
-        self.player_command(Method::POST, "https://api.spotify.com/v1/me/player/next", device_id)
-            .json(&serde_json::json!({}))
-            .send()
-            .await?
-            .error_for_status()?;
+        self.send_player_command(
+            self.player_command(Method::POST, "https://api.spotify.com/v1/me/player/next", device_id)
+                .json(&serde_json::json!({})),
+            "skip to next track",
+            "https://api.spotify.com/v1/me/player/next",
+        )
+        .await?;
         Ok(())
     }
 
     pub async fn previous_track(&self, device_id: Option<&str>) -> Result<()> {
-        self.player_command(Method::POST, "https://api.spotify.com/v1/me/player/previous", device_id)
-            .json(&serde_json::json!({}))
-            .send()
-            .await?
-            .error_for_status()?;
+        self.send_player_command(
+            self.player_command(Method::POST, "https://api.spotify.com/v1/me/player/previous", device_id)
+                .json(&serde_json::json!({})),
+            "skip to previous track",
+            "https://api.spotify.com/v1/me/player/previous",
+        )
+        .await?;
         Ok(())
     }
 
@@ -104,46 +116,47 @@ impl SpotifyApi {
         if let Some(device_id) = device_id {
             url.query_pairs_mut().append_pair("device_id", device_id);
         }
-        self.request(Method::POST, url.as_str())
-            .send()
-            .await?
-            .error_for_status()?;
+        self.send_player_command(
+            self.request(Method::POST, url.as_str()),
+            "queue track",
+            "https://api.spotify.com/v1/me/player/queue",
+        )
+        .await?;
         Ok(())
     }
 
     pub async fn transfer_playback(&self, device_id: &str, play: bool) -> Result<()> {
-        self.client
-            .request(Method::PUT, "https://api.spotify.com/v1/me/player")
-            .bearer_auth(&self.access_token)
-            .json(&TransferPlaybackRequest {
-                device_ids: vec![device_id.to_string()],
-                play,
-            })
-            .send()
-            .await?
-            .error_for_status()?;
+        self.send_player_command(
+            self.client
+                .request(Method::PUT, "https://api.spotify.com/v1/me/player")
+                .bearer_auth(&self.access_token)
+                .json(&TransferPlaybackRequest {
+                    device_ids: vec![device_id.to_string()],
+                    play,
+                }),
+            "transfer playback",
+            "https://api.spotify.com/v1/me/player",
+        )
+        .await?;
         Ok(())
     }
 
     pub async fn play_track(&self, uri: &str, device_id: Option<&str>) -> Result<()> {
-        self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/play", device_id)
-            .json(&PlayRequest {
+        self.send_player_command(
+            self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/play", device_id).json(&PlayRequest {
                 uris: vec![uri.to_string()],
-            })
-            .send()
-            .await?
-            .error_for_status()?;
+            }),
+            "start playback",
+            "https://api.spotify.com/v1/me/player/play",
+        )
+        .await?;
         Ok(())
     }
 
     async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<T> {
-        Ok(self
-            .request(Method::GET, url)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?)
+        let resp = self.request(Method::GET, url).send().await?;
+        let resp = self.checked_response(resp, "fetch data", url)?;
+        Ok(resp.json().await?)
     }
 
     fn request(&self, method: Method, url: &str) -> reqwest::RequestBuilder {
@@ -159,6 +172,34 @@ impl SpotifyApi {
         }
         request
     }
+
+    async fn send_player_command(&self, request: reqwest::RequestBuilder, action: &str, url: &str) -> Result<()> {
+        let resp = request.send().await?;
+        self.checked_response(resp, action, url)?;
+        Ok(())
+    }
+
+    fn checked_response(&self, resp: Response, action: &str, url: &str) -> Result<Response> {
+        if resp.status().is_success() {
+            return Ok(resp);
+        }
+
+        let status = resp.status();
+        Err(status_error(status, action, url))
+    }
+}
+
+fn status_error(status: StatusCode, action: &str, url: &str) -> anyhow::Error {
+    let message = match status.as_u16() {
+        401 => format!("{action} failed: Spotify auth expired. Run `spotifytui onboard` again."),
+        403 => format!("{action} failed: Spotify denied access. Open Spotify on a device and try again."),
+        404 => format!("{action} failed: no active Spotify device found. Open Spotify, select a device, then try again."),
+        411 => format!("{action} failed: Spotify rejected an empty request body. Update the app or try again after refresh."),
+        429 => format!("{action} failed: Spotify rate limited the request. Try again in a moment."),
+        code if (500..600).contains(&code) => format!("{action} failed: Spotify service error ({status}). Try again later."),
+        _ => format!("{action} failed: HTTP {status} from {url}"),
+    };
+    anyhow::anyhow!(message)
 }
 
 #[derive(Debug, Serialize)]
