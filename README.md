@@ -57,6 +57,7 @@ curl -fsSL https://raw.githubusercontent.com/Qw1nti/Spotify-TUI/main/install.sh 
 ```
 
 Installer downloads `Qw1nti/Spotify-TUI`, asks whether to install globally, then prints `spotifytui`. After install, run `spotifytui`.
+If you want to remove it later, run `./uninstall.sh` from the repo root. That removes the installed `spotifytui` command and deletes the app config/token directories.
 
 ## First Run
 
