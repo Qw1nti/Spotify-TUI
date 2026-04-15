@@ -65,6 +65,7 @@ impl SpotifyApi {
         if let Some(state) = playback {
             if state.is_playing {
                 self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/pause", device_id)
+                    .json(&serde_json::json!({}))
                     .send()
                     .await?
                     .error_for_status()?;
@@ -80,6 +81,7 @@ impl SpotifyApi {
 
     pub async fn next_track(&self, device_id: Option<&str>) -> Result<()> {
         self.player_command(Method::POST, "https://api.spotify.com/v1/me/player/next", device_id)
+            .json(&serde_json::json!({}))
             .send()
             .await?
             .error_for_status()?;
@@ -88,6 +90,7 @@ impl SpotifyApi {
 
     pub async fn previous_track(&self, device_id: Option<&str>) -> Result<()> {
         self.player_command(Method::POST, "https://api.spotify.com/v1/me/player/previous", device_id)
+            .json(&serde_json::json!({}))
             .send()
             .await?
             .error_for_status()?;
