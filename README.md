@@ -14,6 +14,7 @@ Rust rewrite of Spotify TUI with a cleaner terminal UI and loopback OAuth on `ht
 Config lives at `~/.config/spotifytui/config.yml`.
 Cached auth tokens live at `~/.config/spotifytui/tokens.yml`.
 Installer creates `~/.local/share/spotifytui` and `~/.cache/spotifytui` for app data and cache.
+Error logs land in `~/.local/share/spotifytui/logs/errors.log`.
 First launch runs a setup wizard that asks for Spotify app id, app secret, and confirms redirect URI.
 Register `http://127.0.0.1:8890/callback` in Spotify dashboard.
 The secret prompt is hidden while you type. Leave it blank if you want PKCE-only auth.

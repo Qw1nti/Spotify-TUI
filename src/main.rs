@@ -4,6 +4,7 @@ mod auth;
 mod config;
 mod dotenv;
 mod maintenance;
+mod logs;
 mod setup;
 mod ui;
 
@@ -18,6 +19,15 @@ use std::{io, path::PathBuf, time::Duration};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if let Err(err) = real_main().await {
+        let _ = logs::log_error("startup", &err);
+        return Err(err);
+    }
+    Ok(())
+}
+
+async fn real_main() -> Result<()> {
+    logs::ensure_logs_dir()?;
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     if args.iter().any(|arg| arg == "-h" || arg == "--help") {
         maintenance::print_help();
@@ -61,7 +71,12 @@ async fn main() -> Result<()> {
     )?;
     terminal.show_cursor()?;
 
-    run_result
+    if let Err(err) = run_result {
+        let _ = logs::log_error("runtime", &err);
+        return Err(err);
+    }
+
+    Ok(())
 }
 
 async fn run_app(
@@ -69,6 +84,7 @@ async fn run_app(
     app: &mut app::App,
 ) -> Result<()> {
     if let Err(err) = app.refresh().await {
+        let _ = logs::log_error("refresh", &err);
         app.status = friendly_error(&err);
     }
 
@@ -84,6 +100,7 @@ async fn run_app(
                     Ok(true) => break,
                     Ok(false) => {}
                     Err(err) => {
+                        let _ = logs::log_error("input", &err);
                         app.status = friendly_error(&err);
                     }
                 }

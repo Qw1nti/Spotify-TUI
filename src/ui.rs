@@ -62,7 +62,19 @@ fn render_main(frame: &mut Frame<'_>, area: Rect, app: &App) {
         let text = app
             .empty_state()
             .unwrap_or("Nothing to show yet.");
-        let block = Paragraph::new(text)
+        let help = vec![
+            Line::from(vec![
+                Span::styled("No content", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(""),
+            Line::from(text),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Tips: ", Style::default().fg(Color::Gray)),
+                Span::raw("tab switch, / search, enter play, space pause, F1 help"),
+            ]),
+        ];
+        let block = Paragraph::new(help)
             .wrap(Wrap { trim: true })
             .block(Block::default().title(app.section_title()).borders(Borders::ALL));
         frame.render_widget(block, area);
@@ -143,6 +155,12 @@ fn render_detail(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .split(area);
 
     let mut lines = vec![];
+    lines.push(Line::from(vec![
+        Span::styled("spotifytui", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Span::styled("  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(app.section_title(), Style::default().fg(Color::LightCyan)),
+    ]));
+    lines.push(Line::from(""));
     if let Some(user) = &app.user {
         lines.push(Line::from(vec![
             Span::styled("User: ", Style::default().fg(Color::Gray)),
@@ -251,10 +269,11 @@ fn render_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let left = format!("{} | {}", app.section_title(), app.status);
     let right = "q quit  tab switch  / search  enter search/play or pick device  a queue  o play  n/b next prev  space play/pause  r refresh  Esc keep input  F1 help";
     let text = Line::from(vec![
-        Span::styled(left, Style::default().fg(Color::Gray)),
+        Span::styled(left, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
         Span::raw("   "),
         Span::styled(right, Style::default().fg(Color::DarkGray)),
     ]);
-    let block = Paragraph::new(text).block(Block::default().borders(Borders::ALL));
+    let block = Paragraph::new(text)
+        .block(Block::default().borders(Borders::ALL).title("Controls"));
     frame.render_widget(block, area);
 }
