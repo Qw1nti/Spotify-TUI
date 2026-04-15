@@ -1,0 +1,19 @@
+client_id: ""
+redirect_hosts:
+  - "127.0.0.1"
+  - "localhost"
+redirect_ports:
+  - 8888
+  - 8890
+  - 8080
+theme:
+  accent: "Cyan"
+  accent_soft: "LightCyan"
+  background: "Black"
+  surface: "DarkGray"
+  text: "White"
+  muted: "Gray"
+  danger: "LightRed"
+  success: "LightGreen"
+ui:
+  list_page_size: 20
