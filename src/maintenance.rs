@@ -39,6 +39,7 @@ pub fn run_uninstall() -> Result<()> {
     remove_dir(crate::config_dir("spotifytui"));
     remove_dir(crate::home_dir(".cache/spotifytui"));
     remove_dir(crate::home_dir(".local/share/spotifytui"));
+    remove_dir(crate::home_dir(".local/share/spotifytui/logs"));
     remove_tokens()?;
     try_remove_current_exe()?;
     println!("Done.");

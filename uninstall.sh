@@ -62,5 +62,6 @@ say "Removing app data..."
 remove_dir "$HOME/.config/spotifytui"
 remove_dir "$HOME/.cache/spotifytui"
 remove_dir "$HOME/.local/share/spotifytui"
+remove_dir "$HOME/.local/share/spotifytui/logs"
 
 say "Done."
