@@ -147,6 +147,22 @@ pub async fn authenticate(config: &Config, callback_override: Option<String>) ->
     if returned_state != state {
         return Err(anyhow!("spotify oauth state mismatch"));
     }
+    if let Some(error) = returned.query_pairs().find(|(k, _)| k == "error").map(|(_, v)| v.to_string()) {
+        let description = returned
+            .query_pairs()
+            .find(|(k, _)| k == "error_description")
+            .map(|(_, v)| v.to_string())
+            .unwrap_or_default();
+        return Err(anyhow!(
+            "spotify authorization failed: {}{}",
+            error,
+            if description.is_empty() {
+                String::new()
+            } else {
+                format!(" ({description})")
+            }
+        ));
+    }
     let code = returned
         .query_pairs()
         .find(|(k, _)| k == "code")

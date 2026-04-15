@@ -15,6 +15,7 @@ Config lives at `~/.config/spotifytui/config.yml`.
 Cached auth tokens live at `~/.config/spotifytui/tokens.yml`.
 First launch runs a setup wizard that asks for Spotify app id, app secret, and confirms redirect URI.
 Register `http://127.0.0.1:8890/callback` in Spotify dashboard.
+The secret prompt is hidden while you type. Leave it blank if you want PKCE-only auth.
 Optional `.env` file in repo root can hold `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `SPOTIFY_CALLBACK_URL`.
 `SPOTIFY_CALLBACK_URL` should be full browser redirect URL with `code` and `state` query params if you want to bypass the prompt.
 
@@ -46,6 +47,7 @@ cargo run --bin spt
 ```
 
 If Spotify auth fails in browser, paste callback URL into terminal when prompted.
+If Spotify returns `error=server_error`, re-check that the redirect URI in the Spotify dashboard is exactly `http://127.0.0.1:8890/callback`.
 To run by typing `spotifytui`, put repo root on `PATH` or symlink/copy the `spotifytui` launcher script into a PATH directory.
 
 ## Installer

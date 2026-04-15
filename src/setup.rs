@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use rpassword::read_password;
 use std::io::{self, Write};
 
 use crate::{config::Config, dotenv::Dotenv};
@@ -63,18 +62,18 @@ fn prompt_value(label: &str, default: Option<&str>) -> Result<String> {
 fn prompt_secret(label: &str, default: Option<&str>) -> Result<String> {
     let default_value = default.unwrap_or("").trim().to_string();
     if !default_value.is_empty() {
-        print!("{label} [stored value hidden, press Enter to keep]: ");
-        io::stdout().flush()?;
-        let value = read_password()?;
+        let value = rpassword::prompt_password(format!(
+            "{label} [stored value hidden, press Enter to keep]: "
+        ))?;
         if value.trim().is_empty() {
             Ok(default_value)
         } else {
             Ok(value.trim().to_string())
         }
     } else {
-        print!("{label}: ");
-        io::stdout().flush()?;
-        Ok(read_password()?.trim().to_string())
+        Ok(rpassword::prompt_password(format!("{label}: "))?
+            .trim()
+            .to_string())
     }
 }
 
