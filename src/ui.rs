@@ -69,20 +69,6 @@ fn render_main(frame: &mut Frame<'_>, area: Rect, app: &App) {
         return;
     }
 
-    let items = app
-        .current_items()
-        .into_iter()
-        .enumerate()
-        .map(|(idx, item)| {
-            let style = if idx == app.selected {
-                Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            ListItem::new(Line::from(Span::styled(item, style)))
-        })
-        .collect::<Vec<_>>();
-
     let title = match app.section {
         Section::Search => match app.search_total {
             Some(total) if !app.search_query.is_empty() => {
@@ -91,6 +77,55 @@ fn render_main(frame: &mut Frame<'_>, area: Rect, app: &App) {
             _ => format!("{} [{}]", app.section_title(), app.search_query),
         },
         _ => app.section_title().to_string(),
+    };
+
+    let items = if app.section == Section::Devices {
+        app.devices
+            .iter()
+            .enumerate()
+            .map(|(idx, device)| {
+                let selected = idx == app.selected;
+                let preferred = app
+                    .preferred_device_id
+                    .as_deref()
+                    .is_some_and(|id| device.id.as_deref() == Some(id));
+                let active = device.is_active;
+                let label = format!(
+                    "{}{} {}{}",
+                    if selected { ">" } else { " " },
+                    if preferred { "*" } else { " " },
+                    device.name,
+                    device
+                        .volume_percent
+                        .map(|v| format!("  {}%", v))
+                        .unwrap_or_default()
+                );
+                let style = if selected {
+                    Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+                } else if preferred {
+                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                } else if active {
+                    Style::default().fg(Color::LightGreen)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+                ListItem::new(Line::from(Span::styled(label, style)))
+            })
+            .collect::<Vec<_>>()
+    } else {
+        app
+            .current_items()
+            .into_iter()
+            .enumerate()
+            .map(|(idx, item)| {
+                let style = if idx == app.selected {
+                    Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+                ListItem::new(Line::from(Span::styled(item, style)))
+            })
+            .collect::<Vec<_>>()
     };
 
     let list = List::new(items).block(
@@ -155,10 +190,29 @@ fn render_detail(frame: &mut Frame<'_>, area: Rect, app: &App) {
             Span::styled("Device: ", Style::default().fg(Color::Gray)),
             Span::raw(device.name.clone()),
         ]));
+        if app
+            .preferred_device_id
+            .as_deref()
+            .is_some_and(|id| device.id.as_deref() == Some(id))
+        {
+            lines.push(Line::from(vec![
+                Span::styled("Target: ", Style::default().fg(Color::Gray)),
+                Span::raw("selected"),
+            ]));
+        }
         if let Some(volume) = device.volume_percent {
             lines.push(Line::from(vec![
                 Span::styled("Device Volume: ", Style::default().fg(Color::Gray)),
                 Span::raw(format!("{}%", volume)),
+            ]));
+        }
+    }
+
+    if let Some(id) = app.preferred_device_id.as_deref() {
+        if let Some(device) = app.devices.iter().find(|d| d.id.as_deref() == Some(id)) {
+            lines.push(Line::from(vec![
+                Span::styled("Target Device: ", Style::default().fg(Color::Gray)),
+                Span::raw(device.name.clone()),
             ]));
         }
     }
@@ -195,7 +249,7 @@ fn render_detail(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
 fn render_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let left = format!("{} | {}", app.section_title(), app.status);
-    let right = "q quit  tab switch  / search  enter search/play  a queue  o play  n/b next prev  space play/pause  r refresh  Esc keep input  F1 help";
+    let right = "q quit  tab switch  / search  enter search/play or pick device  a queue  o play  n/b next prev  space play/pause  r refresh  Esc keep input  F1 help";
     let text = Line::from(vec![
         Span::styled(left, Style::default().fg(Color::Gray)),
         Span::raw("   "),

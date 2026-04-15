@@ -12,6 +12,7 @@ use crate::dotenv::Dotenv;
 pub struct Config {
     pub client_id: String,
     pub client_secret: String,
+    pub preferred_device_id: Option<String>,
     pub redirect_hosts: Vec<String>,
     pub redirect_ports: Vec<u16>,
     pub theme: ThemeConfig,
@@ -42,6 +43,7 @@ impl Default for Config {
         Self {
             client_id: String::new(),
             client_secret: String::new(),
+            preferred_device_id: None,
             redirect_hosts: vec!["127.0.0.1".into()],
             redirect_ports: vec![8890],
             theme: ThemeConfig {

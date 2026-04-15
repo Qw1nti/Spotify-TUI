@@ -48,12 +48,14 @@ pub struct App {
     pub liked_tracks: Vec<api::Track>,
     pub playlists: Vec<api::Playlist>,
     pub devices: Vec<api::Device>,
+    pub preferred_device_id: Option<String>,
     pub status: String,
     pub selected: usize,
 }
 
 impl App {
     pub fn new(config: Config, api: api::SpotifyApi) -> Self {
+        let preferred_device_id = config.preferred_device_id.clone();
         Self {
             config,
             api,
@@ -68,6 +70,7 @@ impl App {
             liked_tracks: Vec::new(),
             playlists: Vec::new(),
             devices: Vec::new(),
+            preferred_device_id,
             status: "Ready".into(),
             selected: 0,
         }
@@ -148,7 +151,7 @@ impl App {
         match code {
             KeyCode::Char('q') if self.section != Section::Search => return Ok(true),
             KeyCode::F(1) => {
-                self.status = "j/k or arrows move. tab switches section. / focus search. space toggles playback. F1 help.".into();
+                self.status = "j/k or arrows move. tab switches section. / search. enter picks device or searches/plays. space toggles playback. F1 help.".into();
             }
             KeyCode::Tab => self.next_section(),
             KeyCode::BackTab => self.prev_section(),
@@ -175,6 +178,18 @@ impl App {
             KeyCode::Char('r') => {
                 self.refresh().await?;
                 self.status = "Refreshed".into();
+            }
+            KeyCode::Enter if self.section == Section::Devices => {
+                if let Some(device) = self.devices.get(self.selected) {
+                    if let Some(id) = device.id.clone() {
+                        self.preferred_device_id = Some(id);
+                        self.config.preferred_device_id = self.preferred_device_id.clone();
+                        let _ = self.config.save();
+                        self.status = format!("Target device set to {}", device.name);
+                    } else {
+                        self.status = "Selected device has no Spotify id".into();
+                    }
+                }
             }
             KeyCode::Char(' ') => {
                 self.ensure_playback_device().await?;
@@ -261,6 +276,11 @@ impl App {
     }
 
     fn current_device_id(&self) -> Option<&str> {
+        if let Some(preferred) = self.preferred_device_id.as_deref() {
+            if self.devices.iter().any(|device| device.id.as_deref() == Some(preferred)) {
+                return Some(preferred);
+            }
+        }
         self.playback
             .as_ref()
             .and_then(|playback| playback.device.as_ref())
@@ -274,7 +294,15 @@ impl App {
             return Ok(());
         }
 
-        let Some(device_id) = self.devices.iter().find_map(|device| device.id.as_deref()) else {
+        let device_id = self.preferred_device_id.as_deref().or_else(|| {
+            self.devices
+                .iter()
+                .find(|device| device.is_active)
+                .and_then(|device| device.id.as_deref())
+        });
+        let device_id = device_id.or_else(|| self.devices.iter().find_map(|device| device.id.as_deref()));
+
+        let Some(device_id) = device_id else {
             self.status = "No Spotify device available. Open Spotify on a device first.".into();
             return Ok(());
         };

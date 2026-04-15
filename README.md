@@ -67,13 +67,15 @@ If you want to remove it later, run `./uninstall.sh` from the repo root. That re
 2. Enter Spotify app id and app secret when prompted.
 3. Add `http://127.0.0.1:8890/callback` to Spotify app redirect URIs.
 4. Sign in once in browser.
-5. Future launches use cached token until it expires.
+5. Use the Devices section and press Enter to pick a playback target if needed.
+6. Future launches use cached token until it expires and remember the last selected device.
 
 ## Keys
 
 - `n` next track
 - `b` previous track
 - `/` search
+- `enter` in Devices sets the target playback device
 - `enter` search or play selected track
 - `a` queue selected track
 - `o` play selected track now
