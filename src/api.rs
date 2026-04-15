@@ -60,16 +60,16 @@ impl SpotifyApi {
         self.get("https://api.spotify.com/v1/me/player/devices").await
     }
 
-    pub async fn toggle_playback(&self) -> Result<()> {
+    pub async fn toggle_playback(&self, device_id: Option<&str>) -> Result<()> {
         let playback = self.current_playback().await?;
         if let Some(state) = playback {
             if state.is_playing {
-                self.request(Method::PUT, "https://api.spotify.com/v1/me/player/pause")
+                self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/pause", device_id)
                     .send()
                     .await?
                     .error_for_status()?;
             } else {
-                self.request(Method::PUT, "https://api.spotify.com/v1/me/player/play")
+                self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/play", device_id)
                     .send()
                     .await?
                     .error_for_status()?;
@@ -78,37 +78,51 @@ impl SpotifyApi {
         Ok(())
     }
 
-    pub async fn next_track(&self) -> Result<()> {
-        self.request(Method::POST, "https://api.spotify.com/v1/me/player/next")
-            .json(&serde_json::json!({}))
+    pub async fn next_track(&self, device_id: Option<&str>) -> Result<()> {
+        self.player_command(Method::POST, "https://api.spotify.com/v1/me/player/next", device_id)
             .send()
             .await?
             .error_for_status()?;
         Ok(())
     }
 
-    pub async fn previous_track(&self) -> Result<()> {
-        self.request(Method::POST, "https://api.spotify.com/v1/me/player/previous")
-            .json(&serde_json::json!({}))
+    pub async fn previous_track(&self, device_id: Option<&str>) -> Result<()> {
+        self.player_command(Method::POST, "https://api.spotify.com/v1/me/player/previous", device_id)
             .send()
             .await?
             .error_for_status()?;
         Ok(())
     }
 
-    pub async fn queue_track(&self, uri: &str) -> Result<()> {
-        self.request(
-            Method::POST,
-            &format!("https://api.spotify.com/v1/me/player/queue?uri={}", urlencoding::encode(uri)),
-        )
-        .send()
-        .await?
-        .error_for_status()?;
+    pub async fn queue_track(&self, uri: &str, device_id: Option<&str>) -> Result<()> {
+        let mut url = reqwest::Url::parse("https://api.spotify.com/v1/me/player/queue")?;
+        url.query_pairs_mut().append_pair("uri", uri);
+        if let Some(device_id) = device_id {
+            url.query_pairs_mut().append_pair("device_id", device_id);
+        }
+        self.request(Method::POST, url.as_str())
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(())
     }
 
-    pub async fn play_track(&self, uri: &str) -> Result<()> {
-        self.request(Method::PUT, "https://api.spotify.com/v1/me/player/play")
+    pub async fn transfer_playback(&self, device_id: &str, play: bool) -> Result<()> {
+        self.client
+            .request(Method::PUT, "https://api.spotify.com/v1/me/player")
+            .bearer_auth(&self.access_token)
+            .json(&TransferPlaybackRequest {
+                device_ids: vec![device_id.to_string()],
+                play,
+            })
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    pub async fn play_track(&self, uri: &str, device_id: Option<&str>) -> Result<()> {
+        self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/play", device_id)
             .json(&PlayRequest {
                 uris: vec![uri.to_string()],
             })
@@ -133,6 +147,14 @@ impl SpotifyApi {
             .request(method, url)
             .bearer_auth(&self.access_token)
     }
+
+    fn player_command(&self, method: Method, url: &str, device_id: Option<&str>) -> reqwest::RequestBuilder {
+        let mut request = self.request(method, url);
+        if let Some(device_id) = device_id {
+            request = request.query(&[("device_id", device_id)]);
+        }
+        request
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -156,9 +178,16 @@ pub struct PlayerState {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Device {
+    pub id: Option<String>,
     pub name: String,
     pub is_active: bool,
     pub volume_percent: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+struct TransferPlaybackRequest {
+    device_ids: Vec<String>,
+    play: bool,
 }
 
 #[derive(Debug, Deserialize, Clone)]

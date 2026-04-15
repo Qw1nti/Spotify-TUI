@@ -112,8 +112,12 @@ impl App {
                             Some(total) => format!("Found {} of {} tracks", self.search_results.len(), total),
                             None => format!("Found {} tracks", self.search_results.len()),
                         };
-                    } else if let Some(uri) = self.selected_track_uri() {
-                        self.api.play_track(uri).await?;
+                    } else if let Some(uri) = self.selected_track_uri().map(|uri| uri.to_string()) {
+                        self.ensure_playback_device().await?;
+                        let Some(device_id) = self.current_device_id() else {
+                            return Ok(false);
+                        };
+                        self.api.play_track(&uri, Some(device_id)).await?;
                         self.playback = self.api.current_playback().await.ok().flatten();
                         self.status = "Playing selected track".into();
                     }
@@ -151,12 +155,20 @@ impl App {
             KeyCode::Down | KeyCode::Char('j') => self.selected = self.selected.saturating_add(1),
             KeyCode::Up | KeyCode::Char('k') => self.selected = self.selected.saturating_sub(1),
             KeyCode::Char('n') => {
-                self.api.next_track().await?;
+                let Some(device_id) = self.current_device_id() else {
+                    self.status = "No Spotify device available. Open Spotify on a device first.".into();
+                    return Ok(false);
+                };
+                self.api.next_track(Some(device_id)).await?;
                 self.playback = self.api.current_playback().await.ok().flatten();
                 self.status = "Skipped to next track".into();
             }
             KeyCode::Char('b') => {
-                self.api.previous_track().await?;
+                let Some(device_id) = self.current_device_id() else {
+                    self.status = "No Spotify device available. Open Spotify on a device first.".into();
+                    return Ok(false);
+                };
+                self.api.previous_track(Some(device_id)).await?;
                 self.playback = self.api.current_playback().await.ok().flatten();
                 self.status = "Went to previous track".into();
             }
@@ -165,7 +177,11 @@ impl App {
                 self.status = "Refreshed".into();
             }
             KeyCode::Char(' ') => {
-                self.api.toggle_playback().await?;
+                self.ensure_playback_device().await?;
+                let Some(device_id) = self.current_device_id() else {
+                    return Ok(false);
+                };
+                self.api.toggle_playback(Some(device_id)).await?;
                 self.playback = self.api.current_playback().await.ok().flatten();
                 self.status = if self.playback.as_ref().map(|p| p.is_playing).unwrap_or(false) {
                     "Playing".into()
@@ -179,13 +195,21 @@ impl App {
             }
             KeyCode::Char('a') => {
                 if let Some(uri) = self.selected_track_uri() {
-                    self.api.queue_track(uri).await?;
+                    let Some(device_id) = self.current_device_id() else {
+                        self.status = "No Spotify device available. Open Spotify on a device first.".into();
+                        return Ok(false);
+                    };
+                    self.api.queue_track(uri, Some(device_id)).await?;
                     self.status = "Queued selected track".into();
                 }
             }
             KeyCode::Char('o') => {
-                if let Some(uri) = self.selected_track_uri() {
-                    self.api.play_track(uri).await?;
+                if let Some(uri) = self.selected_track_uri().map(|uri| uri.to_string()) {
+                    self.ensure_playback_device().await?;
+                    let Some(device_id) = self.current_device_id() else {
+                        return Ok(false);
+                    };
+                    self.api.play_track(&uri, Some(device_id)).await?;
                     self.playback = self.api.current_playback().await.ok().flatten();
                     self.status = "Playing selected track".into();
                 }
@@ -234,6 +258,36 @@ impl App {
                 .map(|t| t.uri.as_str()),
             _ => None,
         }
+    }
+
+    fn current_device_id(&self) -> Option<&str> {
+        self.playback
+            .as_ref()
+            .and_then(|playback| playback.device.as_ref())
+            .and_then(|device| device.id.as_deref())
+            .or_else(|| self.devices.iter().find(|device| device.is_active).and_then(|device| device.id.as_deref()))
+            .or_else(|| self.devices.iter().find_map(|device| device.id.as_deref()))
+    }
+
+    async fn ensure_playback_device(&mut self) -> Result<()> {
+        if self.current_device_id().is_some() {
+            return Ok(());
+        }
+
+        let Some(device_id) = self.devices.iter().find_map(|device| device.id.as_deref()) else {
+            self.status = "No Spotify device available. Open Spotify on a device first.".into();
+            return Ok(());
+        };
+
+        self.api.transfer_playback(device_id, true).await?;
+        self.playback = self.api.current_playback().await.ok().flatten();
+        self.devices = self
+            .api
+            .devices()
+            .await
+            .map(|p| p.devices)
+            .unwrap_or_default();
+        Ok(())
     }
 
     pub fn current_items(&self) -> Vec<String> {
