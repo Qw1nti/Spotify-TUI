@@ -71,6 +71,7 @@ impl SpotifyApi {
                     .error_for_status()?;
             } else {
                 self.player_command(Method::PUT, "https://api.spotify.com/v1/me/player/play", device_id)
+                    .json(&serde_json::json!({}))
                     .send()
                     .await?
                     .error_for_status()?;
