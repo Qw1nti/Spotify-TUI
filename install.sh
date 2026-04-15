@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+APP_NAME="spotifytui"
+REPO_SLUG_DEFAULT="Qw1nti/Spotify-TUI"
+REPO_REF_DEFAULT="main"
+
 say() { printf '%s\n' "$*"; }
+warn() { printf 'Warning: %s\n' "$*" >&2; }
+
 ask() {
   local prompt="$1"
   local default="${2:-}"
@@ -33,35 +39,39 @@ ask_yn() {
     esac
   done
 }
+path_contains_dir() {
+  case ":$PATH:" in
+    *":$1:"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 if [ -f "$HOME/.cargo/env" ]; then
   . "$HOME/.cargo/env"
 fi
 
-if ! command -v cargo >/dev/null 2>&1; then
-  say "Rust toolchain missing."
-  say "Install Rust first: https://rustup.rs"
-  exit 1
-fi
-
-if ! command -v curl >/dev/null 2>&1; then
-  say "curl missing."
-  exit 1
-fi
-
-if ! command -v tar >/dev/null 2>&1; then
-  say "tar missing."
-  exit 1
-fi
+for tool in cargo curl tar install find mktemp id; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    case "$tool" in
+      cargo)
+        say "Rust toolchain missing."
+        say "Install Rust first: https://rustup.rs"
+        ;;
+      *)
+        say "$tool missing."
+        ;;
+    esac
+    exit 1
+  fi
+done
 
 if ! ask_yn "Install spotifytui now?" "Y"; then
   say "Abort."
   exit 0
 fi
 
-repo_ref="${SPOTIFYTUI_REF:-main}"
+repo_ref="${SPOTIFYTUI_REF:-$REPO_REF_DEFAULT}"
 source_dir="${SPOTIFYTUI_SOURCE_DIR:-}"
-default_repo_slug="Qw1nti/Spotify-TUI"
 tmpdir="$(mktemp -d)"
 cleanup() { rm -rf "$tmpdir"; }
 trap cleanup EXIT
@@ -69,13 +79,13 @@ trap cleanup EXIT
 if [ -n "$source_dir" ] && [ -d "$source_dir" ]; then
   workdir="$source_dir"
 else
-  repo_slug="${SPOTIFYTUI_REPO:-$default_repo_slug}"
+  repo_slug="${SPOTIFYTUI_REPO:-$REPO_SLUG_DEFAULT}"
 
   archive_url="https://codeload.github.com/${repo_slug}/tar.gz/refs/heads/${repo_ref}"
   say "Downloading $repo_slug@$repo_ref"
   curl -fsSL "$archive_url" -o "$tmpdir/source.tar.gz"
   tar -xzf "$tmpdir/source.tar.gz" -C "$tmpdir"
-  workdir="$(find "$tmpdir" -maxdepth 1 -type d -name '*-*' | head -n 1)"
+  workdir="$(find "$tmpdir" -mindepth 1 -maxdepth 1 -type d -name '*-*' -print -quit)"
 fi
 
 if [ -z "${workdir:-}" ] || [ ! -f "$workdir/Cargo.toml" ]; then
@@ -91,25 +101,40 @@ else
   prefix="${HOME}/.local"
 fi
 
+if [ "$install_global" = true ] && [ "$(id -u)" -ne 0 ] && ! command -v sudo >/dev/null 2>&1; then
+  say "sudo missing; installing to $HOME/.local/bin instead."
+  install_global=false
+  prefix="${HOME}/.local"
+fi
+
 bin_dir="${prefix}/bin"
-binary_path="${bin_dir}/spotifytui"
-mkdir -p "$bin_dir"
+binary_path="${bin_dir}/${APP_NAME}"
+data_dir="$HOME/.local/share/spotifytui"
+mkdir -p "$HOME/.config/spotifytui" "$data_dir" "$HOME/.cache/spotifytui"
+
+if [ "$install_global" = false ] || [ "$prefix" = "$HOME/.local" ]; then
+  mkdir -p "$bin_dir"
+fi
+
+if [ -e "$binary_path" ]; then
+  say "Updating existing install at $binary_path"
+else
+  say "Installing to $binary_path"
+fi
 
 say "Building release..."
 (cd "$workdir" && cargo build --release --bin spt)
 
 if [ "$install_global" = true ] && [ "$(id -u)" -ne 0 ]; then
-  if command -v sudo >/dev/null 2>&1; then
-    sudo install -Dm755 "$workdir/target/release/spt" "$binary_path"
-  else
-    say "sudo missing; installing to $HOME/.local/bin instead."
-    mkdir -p "$HOME/.local/bin"
-    install -Dm755 "$workdir/target/release/spt" "$HOME/.local/bin/spotifytui"
-    binary_path="$HOME/.local/bin/spotifytui"
-  fi
+  sudo install -Dm755 "$workdir/target/release/spt" "$binary_path"
 else
   install -Dm755 "$workdir/target/release/spt" "$binary_path"
 fi
 
 say "Installed to: $binary_path"
+say "App data dir: $data_dir"
+if ! path_contains_dir "$bin_dir"; then
+  warn "$bin_dir is not on PATH."
+  warn "Add it to PATH or run $binary_path directly."
+fi
 say "Run: spotifytui"
