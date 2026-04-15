@@ -84,7 +84,12 @@ fn render_main(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .collect::<Vec<_>>();
 
     let title = match app.section {
-        Section::Search => format!("{} [{}]", app.section_title(), app.search_query),
+        Section::Search => match app.search_total {
+            Some(total) if !app.search_query.is_empty() => {
+                format!("{} [{}] - {}/{}", app.section_title(), app.search_query, app.search_results.len(), total)
+            }
+            _ => format!("{} [{}]", app.section_title(), app.search_query),
+        },
         _ => app.section_title().to_string(),
     };
 
@@ -130,6 +135,18 @@ fn render_detail(frame: &mut Frame<'_>, area: Rect, app: &App) {
                 Span::raw(if playback.is_playing { "playing" } else { "paused" }),
             ]));
         }
+        if let Some(device) = &playback.device {
+            lines.push(Line::from(vec![
+                Span::styled("Playback: ", Style::default().fg(Color::Gray)),
+                Span::raw(device.name.clone()),
+            ]));
+            if let Some(volume) = device.volume_percent {
+                lines.push(Line::from(vec![
+                    Span::styled("Volume: ", Style::default().fg(Color::Gray)),
+                    Span::raw(format!("{}%", volume)),
+                ]));
+            }
+        }
     }
 
     if let Some(device) = app.devices.iter().find(|d| d.is_active) {
@@ -138,6 +155,12 @@ fn render_detail(frame: &mut Frame<'_>, area: Rect, app: &App) {
             Span::styled("Device: ", Style::default().fg(Color::Gray)),
             Span::raw(device.name.clone()),
         ]));
+        if let Some(volume) = device.volume_percent {
+            lines.push(Line::from(vec![
+                Span::styled("Device Volume: ", Style::default().fg(Color::Gray)),
+                Span::raw(format!("{}%", volume)),
+            ]));
+        }
     }
 
     let block = Paragraph::new(lines)

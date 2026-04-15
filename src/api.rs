@@ -40,14 +40,6 @@ impl SpotifyApi {
         self.get(url.as_str()).await
     }
 
-    pub async fn followed_artists(&self, limit: usize) -> Result<ArtistsPage> {
-        let url = reqwest::Url::parse_with_params(
-            "https://api.spotify.com/v1/me/following",
-            &[("type", "artist"), ("limit", &limit.to_string())],
-        )?;
-        self.get(url.as_str()).await
-    }
-
     pub async fn liked_tracks(&self, limit: usize) -> Result<SavedTracksPage> {
         let url = reqwest::Url::parse_with_params(
             "https://api.spotify.com/v1/me/tracks",
@@ -59,14 +51,6 @@ impl SpotifyApi {
     pub async fn playlists(&self, limit: usize) -> Result<PlaylistsPage> {
         let url = reqwest::Url::parse_with_params(
             "https://api.spotify.com/v1/me/playlists",
-            &[("limit", &limit.to_string())],
-        )?;
-        self.get(url.as_str()).await
-    }
-
-    pub async fn recent_tracks(&self, limit: usize) -> Result<RecentTracksPage> {
-        let url = reqwest::Url::parse_with_params(
-            "https://api.spotify.com/v1/me/player/recently-played",
             &[("limit", &limit.to_string())],
         )?;
         self.get(url.as_str()).await
@@ -208,16 +192,6 @@ pub struct Paging<T> {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct ArtistsPage {
-    pub artists: FollowedArtists,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct FollowedArtists {
-    pub items: Vec<Artist>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
 pub struct SavedTracksPage {
     pub items: Vec<SavedTrack>,
 }
@@ -235,16 +209,6 @@ pub struct PlaylistsPage {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Playlist {
     pub name: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct RecentTracksPage {
-    pub items: Vec<RecentTrack>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct RecentTrack {
-    pub track: Track,
 }
 
 #[derive(Debug, Deserialize, Clone)]

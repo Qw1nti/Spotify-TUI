@@ -43,6 +43,7 @@ pub struct App {
     pub search_query: String,
     pub search_dirty: bool,
     pub search_results: Vec<api::Track>,
+    pub search_total: Option<u32>,
     pub search_view_offset: usize,
     pub liked_tracks: Vec<api::Track>,
     pub playlists: Vec<api::Playlist>,
@@ -62,6 +63,7 @@ impl App {
             search_query: String::new(),
             search_dirty: false,
             search_results: Vec::new(),
+            search_total: None,
             search_view_offset: 0,
             liked_tracks: Vec::new(),
             playlists: Vec::new(),
@@ -101,11 +103,15 @@ impl App {
                 KeyCode::Enter => {
                     if self.search_dirty || self.search_results.is_empty() {
                         let resp = self.api.search_tracks(&self.search_query, self.config.ui.list_page_size).await?;
+                        self.search_total = resp.tracks.total;
                         self.search_results = resp.tracks.items;
                         self.selected = 0;
                         self.search_view_offset = 0;
                         self.search_dirty = false;
-                        self.status = format!("Found {} tracks", self.search_results.len());
+                        self.status = match self.search_total {
+                            Some(total) => format!("Found {} of {} tracks", self.search_results.len(), total),
+                            None => format!("Found {} tracks", self.search_results.len()),
+                        };
                     } else if let Some(uri) = self.selected_track_uri() {
                         self.api.play_track(uri).await?;
                         self.playback = self.api.current_playback().await.ok().flatten();
