@@ -3,6 +3,7 @@ mod app;
 mod auth;
 mod config;
 mod dotenv;
+mod maintenance;
 mod setup;
 mod ui;
 
@@ -13,10 +14,26 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
-use std::{io, time::Duration};
+use std::{io, path::PathBuf, time::Duration};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        maintenance::print_help();
+        return Ok(());
+    }
+    if matches!(args.first().map(|arg| arg.as_str()), Some("help")) {
+        maintenance::print_help();
+        return Ok(());
+    }
+    if args.first().map(|arg| arg.as_str()) == Some("onboard") {
+        return maintenance::run_onboard();
+    }
+    if args.first().map(|arg| arg.as_str()) == Some("uninstall") {
+        return maintenance::run_uninstall();
+    }
+
     let env = dotenv::Dotenv::load()?;
     let config = setup::ensure_config(&env)?;
     let callback_override = env
@@ -71,4 +88,15 @@ async fn run_app(
     }
 
     Ok(())
+}
+
+pub fn home_dir(path: &str) -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(path)
+}
+
+pub fn config_dir(app: &str) -> PathBuf {
+    home_dir(&format!(".config/{app}"))
 }

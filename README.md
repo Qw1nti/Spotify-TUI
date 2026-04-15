@@ -63,6 +63,19 @@ Installer downloads `Qw1nti/Spotify-TUI`, asks whether to install globally, then
 If you choose local install, the binary goes to `~/.local/bin/spotifytui`. If `~/.local/bin` is not on PATH, the installer warns you.
 If you want to remove it later, run `./uninstall.sh` from the repo root. That removes the installed `spotifytui` command and deletes the app config/token directories.
 
+## CLI Commands
+
+```bash
+spotifytui help
+spotifytui --help
+spotifytui onboard
+spotifytui uninstall
+```
+
+- `spotifytui help` or `spotifytui --help` shows the command summary.
+- `spotifytui onboard` reruns the setup wizard for client id and secret.
+- `spotifytui uninstall` removes local config, cache, data, and the installed binary when possible.
+
 ## First Run
 
 1. Open installer or run `spotifytui` from repo root.

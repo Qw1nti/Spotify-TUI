@@ -15,7 +15,7 @@ pub fn ensure_config(env: &Dotenv) -> Result<Config> {
     Ok(config)
 }
 
-fn run_wizard(mut config: Config, env: &Dotenv) -> Result<Config> {
+pub fn run_wizard(mut config: Config, env: &Dotenv) -> Result<Config> {
     println!("Spotify TUI setup");
     println!("Add this redirect URI to your Spotify app:");
     println!("  http://127.0.0.1:8890/callback");
